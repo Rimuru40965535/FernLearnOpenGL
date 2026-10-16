@@ -1,0 +1,63 @@
+# ============================================================================
+# FernLearnOpenGL - .gitignore
+# 目标：排除构建产物与 IDE 状态，但保留第三方库（libs/）以便 clone 即可编译
+#
+# 注意：这里刻意不使用 *.lib / *.dll 这类宽泛规则，
+#       否则会连带忽略 libs/glfw3.lib（那是必须入库的第三方依赖）。
+#       构建产物的忽略改为按目录（x64/、Debug/ 等）精确排除。
+# ============================================================================
+
+# ---- Visual Studio 构建目录（按目录排除，避免误伤 libs/）----
+[xX]64/
+[Dd]ebug/
+[Rr]elease/
+FernLearnOpenGL/[xX]64/
+FernLearnOpenGL/[Dd]ebug/
+FernLearnOpenGL/[Rr]elease/
+
+# ---- 构建产物文件类型（不涉及 libs/ 下的 .lib）----
+*.exe
+*.exp
+*.obj
+*.o
+*.pdb
+*.ilk
+*.idb
+*.iobj
+*.ipdb
+*.tlog
+*.lastbuildstate
+*.recipe
+*.res
+*.pch
+*.sbr
+*.bsc
+
+# ---- Visual Studio / IDE 状态 ----
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+
+# ---- 其他编辑器 ----
+.vscode/
+.idea/
+*.swp
+*~
+
+# ---- 系统文件 ----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ---- 临时文件（注意 .bak 用于备份我改动过的源文件）----
+*.tmp
+*.bak
+*.orig
+*.rej
