@@ -4,8 +4,8 @@
 * @details
 * 目标：验证 GLFW + GLAD 工具链打通，并跑通一条 GPU 渲染管线。
 *
-* 第2个小目标：把框框留住
-*
+* 第3个小目标：完善帧循环，把框框边黑
+* 
 * @author 半人马座beta星
 * @date 2026/10/17
 */
@@ -45,6 +45,12 @@ int main() {
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1);     // 1 = 开启垂直同步
 
+	//OpenGL的函数是在运行时从显卡里动态取的。
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { return 2; }
+	//上一给提交中把这个语句删掉可以解决程序莫名其妙崩溃问题。原因已经查明。
+	//我没有调用一个必须的前置调用。
+	std::cout << glGetString(GL_VERSION) << std::endl;
+
 
 	//循环，和我的引擎有相似之处
 	while(!glfwWindowShouldClose(window)){
@@ -62,6 +68,9 @@ int main() {
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
 		}
 		//的确可以。但是作为键值的字母只能是大写，只能接受65作为A而不能接受97。
+
+		//OpenGL使用双缓冲。这个函数的作用就是交换缓冲区。
+		glfwSwapBuffers(window);
 
 		glfwGetTime();
 	}
