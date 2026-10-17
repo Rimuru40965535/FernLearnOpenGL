@@ -4,7 +4,7 @@
 * @details
 * 目标：验证 GLFW + GLAD 工具链打通，并跑通一条 GPU 渲染管线。
 *
-* 第1个小目标：画出一个黑框框
+* 第2个小目标：把框框留住
 *
 * @author 半人马座beta星
 * @date 2026/10/17
@@ -44,6 +44,28 @@ int main() {
 	//设置上下文为当前（为什么，是不是和多窗口相关？）
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1);     // 1 = 开启垂直同步
+
+
+	//循环，和我的引擎有相似之处
+	while(!glfwWindowShouldClose(window)){
+		
+		//处理键鼠事件
+		glfwPollEvents();
+
+		//看起来这个API应该是判别一个键是否被按下。
+		//API清单给的键应该是ESC，我改空格试试。
+		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+			glfwSetWindowShouldClose(window, GLFW_TRUE);
+		}
+		//等等，我记得EazyX的空格的键值也是32来着？是不是说明这里可以传一个字符作为键值？
+		if (glfwGetKey(window, 'A') == GLFW_PRESS) {
+			glfwSetWindowShouldClose(window, GLFW_TRUE);
+		}
+		//的确可以。但是作为键值的字母只能是大写，只能接受65作为A而不能接受97。
+
+		glfwGetTime();
+	}
+	//不是说好的黑框框吗？怎么是白框框？大晚上编译闪瞎我的眼睛
 
 	//关闭窗口
 	glfwDestroyWindow(window);
