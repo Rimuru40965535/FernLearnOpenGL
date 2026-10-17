@@ -4,7 +4,7 @@
 * @details
 * 目标：验证 GLFW + GLAD 工具链打通，并跑通一条 GPU 渲染管线。
 *
-* 第4个小目标：完善帧循环，实现“我让窗口是啥颜色窗口就得是啥颜色”
+* 目标2-1 ： 渲染出一个三角形
 * 
 * @author 半人马座beta星
 * @date 2026/10/17
@@ -26,6 +26,17 @@
 #include <glad/glad.h>      // 必须在 GLFW 之前
 #include <GLFW/glfw3.h>
 
+// 点着色器源码。看使用要求应该要写成字符串数组。
+// 第一行 #version 是干啥的？
+// 第三行 看起来不像C++代码。它是拿来干啥的？更深入的，编译是什么过程？这段代码片会被编译成什么？怎么运行？
+// Python可以做到把一串字符串的引号去掉以后把结果当作程序代码运行。这里也有类似的机制吗？
+const GLchar* vertice_src = "#version 460 core\n\nlayout(location=0) in vec3 aPos;// 从 VBO 的 location 0 读入顶点位置\n\nvoid main(){\n\tgl_Position = vec4(aPos,1.0); // 必须写！直接当作裁剪空间坐标\n}";
+
+// 片元着色器源码。
+const GLchar* plate_src = "#version 460 core\n\nout vec4 FragColor;// 输出到颜色缓冲\n\nvoid main() {\n\tFragColor = vec4(1.0, 0.5, 0.2, 1.0);// 橙色，RGBA 都是 0~1\n}";
+
+
+
 int main() {
 
 	//初始化（为什么呢？有什么说法吗？）
@@ -39,7 +50,7 @@ int main() {
 
 	//创建窗口
 	//根据英文提示，前两个参数应该是窗口宽高，第三个参数是窗口标题，第四个参数是指向某一个窗口的指针，填入窗口指针指定一个窗口开启全屏显示，如果填空指针就是不开启全屏，最后一个参数是和哪一个上下文共享资源。
-	GLFWwindow* window = glfwCreateWindow(1280, 720, "1、创建窗口", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(1280, 720, "2.绘制三角形", nullptr, nullptr);
 	//返回值如果非空，就是窗口句柄指针，如果是空是报错。
 
 	//设置上下文为当前（为什么，是不是和多窗口相关？）
@@ -54,6 +65,124 @@ int main() {
 
 	int fbw = 0, fbh = 0;
 	double currentSecond = 0;
+
+	// 三角形顶点数据。
+	// 这里填写的已经是 NDC 空间的数据。
+	// OpenGL 的 NDC 空间定义，xy两个轴都应该是[-1,1]。 -> 我需要确认一下NDC 的定义以验证我的猜想。这里的 NDC 定义和我的 NDC 定义不一样。我的技术选择是迁就已有定义和代码风格。
+	const float NDC_vertices[] = {
+		0.0f,  0.5f, 0.0f,
+		-0.5f, -0.5f, 0.0f,
+		0.5f, -0.5f, 0.0f,
+	};
+
+	// 验收代码，预期代码行输出36（预期的9个4字节的float大小）
+	std::cout << "NDC_vertices 数组大小：" << sizeof(NDC_vertices) << std::endl;
+	// 实际控制台输出：
+	/**
+	* 4.6.0 - Build 31.0.101.2137
+	* NDC_vertices 数组大小：36
+	*/
+	// 验收合格。
+
+	// 为了三角形的清楚显示，我把背景颜色换一下，并且这一行代码放到循环外，以节省每循环一次的状态设置函数调用（而且循环内实际调用了也是啥也没改）
+	glClearColor(0.11f, 0.45f, 0.14f, 1.0f);
+
+	// VAO 和 VBO 
+	// 这好像是OpenGL区别于我的引擎的一个特性 -> VAO 和 VBO 分别是什么？有什么用处？
+	// 这块大量采用宏封装，在IDE里面没有浮动显示的英语提示，只有解内联。
+	// API 清单里面关于这一块为什么要这样的解释有点难懂。我希望更深入地了解。
+	GLuint vao = 0, vbo = 0;
+	glGenVertexArrays(1, &vao);     // -> 这个函数的参数列表和返回值？API 文档里面说这个函数是拿来申请几个存名字的地址的，为什么要这么干？
+	glGenBuffers(1, &vbo);			// -> 这个函数的参数列表和返回值？为什么这里又变成 VBO 了？
+
+	glBindVertexArray(vao);                        // ① 先绑 VAO   -> 这个函数的参数列表和返回值？
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);            // ② 再绑 VBO	-> 这个函数的参数列表和返回值？ -> 为什么要这样干？
+
+	glBufferData(GL_ARRAY_BUFFER,               //    上传 -> 这个函数的参数列表和返回值？
+		sizeof(NDC_vertices),					//    字节数（用 sizeof！）
+		NDC_vertices,							//    数据指针
+		GL_STATIC_DRAW);						//    用法：上传一次不改（因为现在我在做的是静态渲染，所以数据使用方法是上传一次不改已经足够。
+	// 验收：vao 和 vbo 是非零整数，且glGetError() 返回 GL_NO_ERROR
+	std::cout << "vao= " << vao << std::endl << "vbo= " << vbo << std::endl;
+	std::cout << ((glGetError() == GL_NO_ERROR) ? "NO_ERROR通过" : "NO_ERROR不通过") << std::endl;
+	// 实际控制台输出：
+	/**
+	* 4.6.0 - Build 31.0.101.2137
+	* NDC_vertices 数组大小：36
+	* vao= 1
+	* vbo= 1
+	* NO_ERROR通过
+	*/
+	// 验收合格。
+
+
+	// 这一块在文档里面是描述顶点属性。-> 这个代码块存在的意义是什么？我想深入探究
+	//
+	glVertexAttribPointer(0, // ① 属性位置，必须和着色器 layout(location=N) 对上 -> 看不见英文提示。我想知道这个函数参数都是啥，返回值是啥，深入探究这个函数主要执行了什么功能，为什么这些参数是必要的，运作原理是什么。
+		3,                   // ② 这个属性占几个分量（位置 = x,y,z = 3）
+		GL_FLOAT,            // ③ 分量类型
+		GL_FALSE,            // ④ 是否归一化（float 数据填 GL_FALSE）
+		3 * sizeof(float),   // ⑤ stride：相邻两个顶点隔多少字节
+		(void*)0);           // ⑥ offset：这个属性在顶点内的字节偏移 -> void* 是什么东西？
+
+	glEnableVertexAttribArray(0);              // -> 看不见英文提示。我想知道这个函数参数都是啥，返回值是啥，深入探究这个函数主要执行了什么功能，为什么这些参数是必要的，运作原理是什么。
+	// 验收：文档里面说，没有返回值，等到画出来才知道对错。因此跳过验收阶段。
+	
+	// 这一步在 API 文档里面的编译着色器的步骤。
+	GLuint vertice_vs = glCreateShader(GL_VERTEX_SHADER);   // 片元着色器用 GL_FRAGMENT_SHADER -> Shader 是什么？（我看文档之后的推断是着色器。）有什么功能？
+	// 在这里好像就应该预定义一个src数组存储源码了。
+	glShaderSource(vertice_vs, 1, &vertice_src, nullptr);           // ①着色器 ②源码串数 ③源码数组 ④长度数组(nullptr=以\0结尾) -> 这个看代码的话是要传入一个 shader，传入一串以字符串形式存储的代码，以及这段代码有多长。
+	glCompileShader(vertice_vs);	// 这个函数就是编译着色器的函数吗？
+
+	// 这一段应该不属于编译，应该属于检查结果。
+	GLint ok = GL_FALSE;
+	glGetShaderiv(vertice_vs, GL_COMPILE_STATUS, &ok);      // 查是否编译成功
+	if (!ok) {
+		char log[1024];
+		glGetShaderInfoLog(vertice_vs, sizeof(log), nullptr, log);   // 取出错误日志
+		// 打印 log —— 里面有出错的行号，是唯一的线索
+		std::cerr << "[shader compile failed]\n" << log << std::endl;
+		return 3; //编译失败就不往下走了，尽早退出。
+	}
+	else {
+		std::cout << "点着色器编译通过" << std::endl;
+	}
+
+	// 片元着色器
+	GLuint plate_fs = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(plate_fs, 1, &plate_src, nullptr);           
+	glCompileShader(plate_fs);
+
+	ok = GL_FALSE;
+	glGetShaderiv(plate_fs, GL_COMPILE_STATUS, &ok);
+	if (!ok) {
+		char log[1024];
+		glGetShaderInfoLog(plate_fs, sizeof(log), nullptr, log);   // 取出错误日志
+		// 打印 log —— 里面有出错的行号，是唯一的线索
+		std::cerr << "[shader compile failed]\n" << log << std::endl;
+		return 3; //编译失败就不往下走了，尽早退出。
+	}
+	else {
+		std::cout << "片元着色器编译通过" << std::endl;
+	}
+
+	// 链接程序
+	GLuint prog = glCreateProgram();
+	glAttachShader(prog, vertice_vs);
+	glAttachShader(prog, plate_fs);
+	glLinkProgram(prog);
+
+	ok = GL_FALSE;
+	glGetProgramiv(prog, GL_LINK_STATUS, &ok);
+	if (!ok) {
+		char log[1024];
+		glGetProgramInfoLog(prog, sizeof(log), nullptr, log);
+	}
+
+	// 链接完了就可以删程序 -> 编译结果是怎么被持有的？
+	glDeleteShader(vertice_vs);
+	glDeleteShader(plate_fs);
+
 
 	//循环，和我的引擎有相似之处
 	while(!glfwWindowShouldClose(window)){
@@ -98,8 +227,9 @@ int main() {
 		// glClearColor(207, 239, 252, 255);
 		// 结果与猜想一致，窗口变为纯白。
 		// 现在试试这个值能否把窗口填充色变为利姆露蓝。（207，239，252）
-		glClearColor(207 / 255.0, 239 / 255.0, 252 / 255.0, 255 / 255.0);
+		//glClearColor(207 / 255.0, 239 / 255.0, 252 / 255.0, 255 / 255.0);
 		// 验证结果：我电脑设置的主题色就是利姆露蓝，也就导致我的标题栏的颜色是准确的利姆露蓝。现在窗口和标题栏无法分辨，证明成功显示背景色。
+
 
 		// 重设画面缓冲状态的执行函数
 		// 位掩码参数的设计是对函数的一个优化，它可以支持按位或（想清谁就清谁，彼此互不干扰）
@@ -108,6 +238,17 @@ int main() {
 		// 我觉得我可以借鉴这个函数的设计，优化时可以考虑将缓冲清除函数实现为一个。
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);      
 		// 文档提示我需要一并重设深度缓冲，而且是着重强调。完整管线实现后，我想可以故意踩一下这个坑。
+
+		// 根据已有开发经验，绘制代码集中在清屏与交换缓冲区之间。
+
+
+		glUseProgram(prog);
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+
+
+
+
 
 		//OpenGL使用双缓冲。这个函数的作用就是交换缓冲区。
 		glfwSwapBuffers(window);
