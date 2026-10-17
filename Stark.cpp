@@ -4,9 +4,11 @@
 * @details
 * 目标：验证 GLFW + GLAD 工具链打通，并跑通一条 GPU 渲染管线。
 *
-* 目标2-1 ： 渲染出一个三角形
+* 目标3 ： 渲染出一个正方体
+* 
 * 
 * @author 半人马座beta星
+* 测试数据使用AI生成
 * @date 2026/10/17
 */
 
@@ -86,6 +88,31 @@ int main() {
 
 	// 为了三角形的清楚显示，我把背景颜色换一下，并且这一行代码放到循环外，以节省每循环一次的状态设置函数调用（而且循环内实际调用了也是啥也没改）
 	glClearColor(0.11f, 0.45f, 0.14f, 1.0f);
+
+	// 接下来的代码片段是 AI 生成的测试数据片段。
+	// 由于我没有预先计算一组可以复用的数据，所以我需要使用 AI 生成一份。
+	// ================= P0 步骤1：CPU 侧矩阵自检 =================
+	glfwGetFramebufferSize(window, &fbw, &fbh);      // 循环外先取一次尺寸
+
+	Fern::Matrix4x4 model = Fern::Matrix4x4::Identity();
+	Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4);   // +4，见下方说明
+	Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(
+		fbw, fbh,
+		60.0 * 3.14159265358979 / 180.0,
+		0.1, 100.0);
+	Fern::Matrix4x4 MVP = model * view * proj;      // ★ 你的顺序（书写=应用顺序）
+
+	const double corners[8][3] = {
+		{ 1, 1, 1}, { 1, 1,-1}, { 1,-1, 1}, { 1,-1,-1},
+		{-1, 1, 1}, {-1, 1,-1}, {-1,-1, 1}, {-1,-1,-1},
+	};
+	std::cout << "---- MVP 自检（8 个角点的 NDC）----" << std::endl;
+	for (int i = 0; i < 8; ++i) {
+		Fern::Vector3D ndc = MVP * Fern::Vector3D(corners[i][0], corners[i][1], corners[i][2]);
+		std::cout << "  角点" << i << "  ndc = ("
+			<< ndc.x << ", " << ndc.y << ", " << ndc.z << ")" << std::endl;
+	}
+	// ===========================================================
 
 	// VAO 和 VBO 
 	// 这好像是OpenGL区别于我的引擎的一个特性 -> VAO 和 VBO 分别是什么？有什么用处？
