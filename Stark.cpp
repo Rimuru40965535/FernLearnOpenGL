@@ -4,7 +4,7 @@
 * @details
 * 目标：验证 GLFW + GLAD 工具链打通，并跑通一条 GPU 渲染管线。
 *
-* 目标3 ： 渲染出一个正方体
+* 目标4：实现简单场景渲染
 * 
 * 
 * @author 半人马座beta星
@@ -50,7 +50,7 @@ int main() {
 	
 
 	//创建窗口
-	GLFWwindow* window = glfwCreateWindow(1280, 720, "3.Render A Rotating Cube", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(1280, 720, "4.Render A Simple Scene", nullptr, nullptr);
 	//返回值如果非空，就是窗口句柄指针，如果是空是报错。
 
 	//设置上下文为当前
@@ -84,32 +84,75 @@ int main() {
 
 	// 接下来的代码片段是 AI 生成的测试数据片段。
 	// 由于我没有预先计算一组可以复用的数据，所以我需要使用 AI 生成一份。
-	glfwGetFramebufferSize(window, &fbw, &fbh);      // 循环外先取一次尺寸
-
-	
-	
 	// 立方体：36 个顶点（12 三角形），每顶点 = 位置(3) + 颜色(3)
 	// 六个面六种颜色，便于肉眼验证深度测试
 	const float cube_vertices[] = {
+		// 顶点       颜色   法线    
 		// +X 面 红
-		 1,-1,-1,  1,0,0,   1, 1,-1,  1,0,0,   1, 1, 1,  1,0,0,
-		 1,-1,-1,  1,0,0,   1, 1, 1,  1,0,0,   1,-1, 1,  1,0,0,
+		 1,-1,-1,  1,0,0,   1,0,0,
+		 1, 1,-1,  1,0,0,   1,0,0,
+		 1, 1, 1,  1,0,0,	1,0,0,
+
+		 1,-1,-1,  1,0,0,   1,0,0,
+		 1, 1, 1,  1,0,0,   1,0,0,
+		 1,-1, 1,  1,0,0,   1,0,0,
 		 // -X 面 青
-		 -1,-1,-1,  0,1,1,  -1,-1, 1,  0,1,1,  -1, 1, 1,  0,1,1,
-		 -1,-1,-1,  0,1,1,  -1, 1, 1,  0,1,1,  -1, 1,-1,  0,1,1,
+		 -1,-1,-1,  0,1,1,  -1,0,0, 
+		 -1,-1, 1,  0,1,1,  -1,0,0,
+		 -1, 1, 1,  0,1,1,	-1,0,0,
+
+		 -1,-1,-1,  0,1,1,  -1,0,0,
+		 -1, 1, 1,  0,1,1,  -1,0,0,
+		 -1, 1,-1,  0,1,1,  -1,0,0,
 		 // +Y 面 绿
-		 -1, 1,-1,  0,1,0,  -1, 1, 1,  0,1,0,   1, 1, 1,  0,1,0,
-		 -1, 1,-1,  0,1,0,   1, 1, 1,  0,1,0,   1, 1,-1,  0,1,0,
+		 -1, 1,-1,  0,1,0,  0,1,0,
+		 -1, 1, 1,  0,1,0,  0,1,0,
+		 1, 1, 1,  0,1,0,   0,1,0,
+
+		 -1, 1,-1,  0,1,0,  0,1,0,
+		 1, 1, 1,  0,1,0,   0,1,0,
+		 1, 1,-1,  0,1,0,   0,1,0,
 		 // -Y 面 品红
-		 -1,-1,-1,  1,0,1,   1,-1,-1,  1,0,1,   1,-1, 1,  1,0,1,
-		 -1,-1,-1,  1,0,1,   1,-1, 1,  1,0,1,  -1,-1, 1,  1,0,1,
+		 -1,-1,-1,  1,0,1,   0,-1,0,
+		 1,-1,-1,  1,0,1,    0,-1,0,
+		 1,-1, 1,  1,0,1,    0,-1,0,
+
+		 -1,-1,-1,  1,0,1,   0,-1,0,
+		 1,-1, 1,  1,0,1,    0,-1,0,
+		 -1,-1, 1,  1,0,1,   0,-1,0,
 		 // +Z 面 蓝
-		 -1,-1, 1,  0,0,1,   1,-1, 1,  0,0,1,   1, 1, 1,  0,0,1,
-		 -1,-1, 1,  0,0,1,   1, 1, 1,  0,0,1,  -1, 1, 1,  0,0,1,
+		 -1,-1, 1,  0,0,1,   0,0,1,
+		 1,-1, 1,  0,0,1,    0,0,1,
+		 1, 1, 1,  0,0,1,    0,0,1,
+
+		 -1,-1, 1,  0,0,1,   0,0,1,
+		 1, 1, 1,   0,0,1,   0,0,1,
+		 -1, 1, 1,  0,0,1,   0,0,1,
 		 // -Z 面 黄
-		 -1,-1,-1,  1,1,0,  -1, 1,-1,  1,1,0,   1, 1,-1,  1,1,0,
-		 -1,-1,-1,  1,1,0,   1, 1,-1,  1,1,0,   1,-1,-1,  1,1,0,
+		 -1,-1,-1,  1,1,0,   0,0,-1,
+		 -1, 1,-1,  1,1,0,   0,0,-1,
+		 1, 1,-1,  1,1,0,    0,0,-1,
+
+		 -1,-1,-1,  1,1,0,   0,0,-1,
+		 1, 1,-1,  1,1,0,    0,0,-1,
+		 1,-1,-1,  1,1,0,    0,0,-1,
 	};
+
+	std::cout << "正方体顶点数组大小：（预期：1296）\t" << sizeof(cube_vertices) << std::endl;
+
+	// 地面顶点数据
+	const float ground_vertices[] = {
+		//顶点		  颜色					法向量
+		-10, 0, -10,  0.35f,0.35f,0.35f,	0,1,0,
+		10, 0,  10,   0.35f,0.35f,0.35f,	0,1,0,
+		10, 0, -10,   0.35f,0.35f,0.35f,	0,1,0,
+
+		-10, 0, -10,  0.35f,0.35f,0.35f,	0,1,0,
+		-10, 0,  10,  0.35f,0.35f,0.35f,	0,1,0,
+		10, 0,  10,   0.35f,0.35f,0.35f,	0,1,0,
+	};
+
+	std::cout << "地板顶点数组大小：（预期：216）\t" << sizeof(ground_vertices) << std::endl;
 
 	// VAO 和 VBO 
 	GLuint vao = 0, vbo = 0;
@@ -127,14 +170,21 @@ int main() {
 	
 
 
-	// 配置顶点数据解密卡
-	GLsizei stride = 6 * sizeof(float);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+	// 配置正方体顶点数据解密卡
+	GLsizei stride = 9 * sizeof(float);
+	//					插槽	大小	类型		归一化		间隔		偏移
+	glVertexAttribPointer(0,	3,		GL_FLOAT,	GL_FALSE,	stride,		(void*)0);
 	glEnableVertexAttribArray(0);     
 
 	// 配置颜色数据解密卡
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+	//					插槽	大小	类型		归一化		间隔		偏移
+	glVertexAttribPointer(1,	3,		GL_FLOAT,	GL_FALSE,	stride,		(void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
+
+	// 配置法向量数据解密卡
+	//					插槽	大小	类型		归一化		间隔		偏移
+	glVertexAttribPointer(2,	3,		GL_FLOAT,	GL_FALSE,	stride,		(void*)(6 * sizeof(float)));
+	glEnableVertexAttribArray(2);
 	
 
 	// 这一步在 API 文档里面的编译着色器的步骤。
@@ -205,6 +255,7 @@ int main() {
 
 	// std::cout << "上传矩阵完成" << std::endl;
 	std::cout << "准备进入循环" << std::endl;
+	std::cout << "near 随时间递增，约 12 秒后画面全黑属预期；按 R 重设" << std::endl;
 
 	//循环，和我的引擎有相似之处
 	while(!glfwWindowShouldClose(window)){
@@ -212,10 +263,62 @@ int main() {
 		//处理键鼠事件
 		glfwPollEvents();
 
-		//看起来这个API应该是判别一个键是否被按下。
-		//API清单给的键应该是ESC，我改空格试试。
-		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+		// 处理键盘事件
+		// 关闭
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
+		}
+		//暂停
+		else if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+			std::cout << "时间已暂停，按 E 继续" << std::endl;
+			while (!glfwWindowShouldClose(window)) {
+				glfwWaitEvents();
+				if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)break;
+				if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+					std::cout << "时间已暂停，若欲退出请先按 E 继续" << std::endl;
+				}
+			}
+			glfwSetTime(currentSecond);
+		}
+		// 重设动画
+		else if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
+			glfwSetTime(0);
+		}
+		// 关键时间
+		else if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
+			std::cout << "时间已暂停，按 E 继续" << std::endl;
+			std::cout << "关键时间点：\n\t按 A 渲染第 13.25 秒\n\t按 S 渲染第 20 秒\n\t按 D 渲染第 25 秒\n\t按 F 渲染第 0 秒" << std::endl;
+			double tempSecond = 0;
+			while (!glfwWindowShouldClose(window)) {
+				glfwPollEvents();
+				if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)break;
+				else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)tempSecond = 13.25;
+				else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)tempSecond = 20;
+				else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)tempSecond = 25;
+				else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)tempSecond = 0;
+
+				glfwGetFramebufferSize(window, &fbw, &fbh);
+				glViewport(0, 0, fbw, fbh);
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+				Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(tempSecond / 10) * Fern::Matrix4x4::RotationY(tempSecond / 20);
+				Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4 - tempSecond / 5);
+				Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(
+					fbw, fbh,
+					Fern::Math::PI / 3,
+					0.1, 100.0);
+				Fern::Matrix4x4 MVP = model * view * proj;
+				for (int row = 0; row < 4; ++row)
+					for (int col = 0; col < 4; ++col)
+						glMat[col * 4 + row] = (float)MVP.values[row][col];
+				glUseProgram(prog);                             
+				glUniformMatrix4fv(uMVP, 1, GL_FALSE, glMat);
+
+				glBindVertexArray(vao);
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+
+				glfwSwapBuffers(window);
+			}
+			glfwSetTime(currentSecond);
 		}
 		
 
@@ -240,13 +343,12 @@ int main() {
 
 		// 动态旋转需要每帧更新矩阵并上传
 		//Fern::Matrix4x4 model = Fern::Matrix4x4::Identity();
-		//Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(Fern::Math::PI / 3) * Fern::Matrix4x4::RotationY(Fern::Math::PI / 4);
-		Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(currentSecond / 10) * Fern::Matrix4x4::RotationY(currentSecond / 20);
+		Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(Fern::Math::PI / 3) * Fern::Matrix4x4::RotationY(Fern::Math::PI / 4);
+		//Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(currentSecond / 10) * Fern::Matrix4x4::RotationY(currentSecond / 20);
 		Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4);
-		Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(
-			fbw, fbh,
-			60.0 * 3.14159265358979 / 180.0,
-			0.1, 100.0);
+		//Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4-currentSecond/5);
+		//Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI /3, 0.1, 100.0);
+		Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI / 3, 0.1+currentSecond, 100.0);
 		Fern::Matrix4x4 MVP = model * view * proj;
 		// 转置：行优先存储 + 列向量作用  →  GLSL 要列主序
 		
@@ -257,7 +359,6 @@ int main() {
 		glUseProgram(prog);                              // 必须在 glUniform 之前
 		glUniformMatrix4fv(uMVP, 1, GL_FALSE, glMat);
 
-		glUseProgram(prog);
 		glBindVertexArray(vao);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
