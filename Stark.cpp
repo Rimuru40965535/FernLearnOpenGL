@@ -63,6 +63,51 @@ const GLchar* plate_src =
 
 
 
+// 配置顶点属性
+// 这个函数封装了我重复遇到三次的解密卡配置
+void SetupMeshAttributes(GLsizei stride) {
+	//                      插槽	大小	类型		归一化		间隔	偏移
+	// 顶点解密卡
+	glVertexAttribPointer(	0,		3,		GL_FLOAT,	GL_FALSE,	stride,	(void*)0);
+	glEnableVertexAttribArray(0);
+
+	// 颜色解密卡
+	glVertexAttribPointer(	1,		3,		GL_FLOAT,	GL_FALSE,	stride,	(void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	// 法向量解密卡
+	glVertexAttribPointer(	2,		3,		GL_FLOAT,	GL_FALSE,	stride,	(void*)(6 * sizeof(float)));
+	glEnableVertexAttribArray(2);
+}
+
+// 画一个物体：算矩阵 → 转置 → 上传 → 绑 VAO → 绘制 
+// 这一个函数封装了我遇到的绘制代码的重复
+void DrawObject(GLuint vao, GLsizei count,
+	const Fern::Matrix4x4& model,
+	const Fern::Matrix4x4& view,
+	const Fern::Matrix4x4& proj,
+	GLint uMVP, GLint uMFN,
+	float* glMat, float* glMfn)
+{
+	// 计算矩阵
+	Fern::Matrix4x4 MVP = model * view * proj;
+	Fern::Matrix4x4 MFN = !~model;
+
+	// 转置并上传矩阵
+	for (int row = 0; row < 4; ++row)
+		for (int col = 0; col < 4; ++col) {
+			glMat[col * 4 + row] = (float)MVP.values[row][col];
+			glMfn[col * 4 + row] = (float)MFN.values[row][col];
+		}
+
+	glUniformMatrix4fv(uMVP, 1, GL_FALSE, glMat);
+	glUniformMatrix4fv(uMFN, 1, GL_FALSE, glMfn);
+
+	// 绑定解密卡，按解密卡解密数据，绘制
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLES, 0, count);
+}
+
 int main() {
 
 	//初始化
@@ -97,6 +142,7 @@ int main() {
 	double currentSecond = 0;
 	float glMat[16] = { 0 };//防御一下未初始化错误
 	float glMfn[16] = { 0 };
+	const double P[4][2] = { {-2,-2}, {2,-2}, {-2,2}, {2,2} };//立方体位置
 
 	// 清屏颜色设置
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -173,37 +219,38 @@ int main() {
 
 	std::cout << "地板顶点数组大小：（预期：216）\t" << sizeof(ground_vertices) << std::endl;
 
+	GLsizei stride = 9 * sizeof(float);
+
 	// VAO 和 VBO 
 	GLuint vao = 0, vbo = 0;
-	glGenVertexArrays(1, &vao);     
-	glGenBuffers(1, &vbo);			
+	//					要多少	往哪存
+	glGenVertexArrays(	1,		&vao);     
+	glGenBuffers(		1,		&vbo);			
 
-	glBindVertexArray(vao);                        
+	//					切换解密卡到
+	glBindVertexArray(	vao);  
+
+	// 在当前解密卡下绑定数据并上传
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);            
+	glBufferData(GL_ARRAY_BUFFER,sizeof(cube_vertices),cube_vertices,GL_STATIC_DRAW);
+	SetupMeshAttributes(stride);
 
-	// 上传顶点数据
-	glBufferData(GL_ARRAY_BUFFER,               
-		sizeof(cube_vertices),
-		cube_vertices,
-		GL_STATIC_DRAW);	// 静态数据用static而不是静态绘制用static					
+	// 地面 VAO/VBO
+	GLuint groundVao = 0, groundVbo = 0;
+	glGenVertexArrays(1, &groundVao);
+	glGenBuffers(1, &groundVbo);
+
+	//					切换解密卡到
+	glBindVertexArray(	groundVao); 
+	// 没有这一句，会把数据写进正方体的解密卡（之前切换的解密卡）里面
+	
+	// 向解密卡里面绑数据并上传
+	glBindBuffer(GL_ARRAY_BUFFER, groundVbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(ground_vertices), ground_vertices, GL_STATIC_DRAW);
+	SetupMeshAttributes(stride);
 	
 
 
-	// 配置正方体顶点数据解密卡
-	GLsizei stride = 9 * sizeof(float);
-	//					插槽	大小	类型		归一化		间隔		偏移
-	glVertexAttribPointer(0,	3,		GL_FLOAT,	GL_FALSE,	stride,		(void*)0);
-	glEnableVertexAttribArray(0);     
-
-	// 配置颜色数据解密卡
-	//					插槽	大小	类型		归一化		间隔		偏移
-	glVertexAttribPointer(1,	3,		GL_FLOAT,	GL_FALSE,	stride,		(void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	// 配置法向量数据解密卡
-	//					插槽	大小	类型		归一化		间隔		偏移
-	glVertexAttribPointer(2,	3,		GL_FLOAT,	GL_FALSE,	stride,		(void*)(6 * sizeof(float)));
-	glEnableVertexAttribArray(2);
 	
 
 	// 编译着色器
@@ -342,47 +389,23 @@ int main() {
 		//上传光源
 		glUniform3f(uLightDirection, 0.3f, 1.0f, -0.7f);  // 从斜上方照下来
 
-		// 动态旋转需要每帧更新矩阵并上传
-		// 
-		//Fern::Matrix4x4 model = Fern::Matrix4x4::Identity();
-		//Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(Fern::Math::PI / 3) * Fern::Matrix4x4::RotationY(Fern::Math::PI / 4);
-		Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(currentSecond / 10) * Fern::Matrix4x4::RotationY(currentSecond / 20);
+		// 相机与投影（所有物体共用）
+		
+		Fern::Matrix4x4 view = Fern::Matrix4x4::RotationX(- Fern::Math::PI / 10) * Fern::Matrix4x4::Translation(0, -1.5, 8);
+		
+		Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh, Fern::Math::PI / 3, 0.1, 100.0);
 
-		Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4);
-		//Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4-currentSecond/5);
+		// ① 地面：不做任何变换
+		DrawObject(groundVao, 6, Fern::Matrix4x4::Identity(), view, proj, uMVP, uMFN, glMat, glMfn);
 
-		Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI /3, 0.1, 100.0);
-		//Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI / 3, 0.1+currentSecond, 100.0);
-
-		Fern::Matrix4x4 MVP = model * view * proj;
-		Fern::Matrix4x4 MFN = !~model;//这里保证数学上正确并且程序上可移植，虽然可以省两次转置但是我还是选择这样做。
-
-		// 转置MVP并上传
-		for (int row = 0; row < 4; ++row)
-			for (int col = 0; col < 4; ++col)
-				glMat[col * 4 + row] = (float)MVP.values[row][col];
-
-		// 上传矩阵
-		//					uniform位置	上传几个矩阵	是否转置	指向16个float的指针（列主序）
-		glUniformMatrix4fv(	uMVP,		1,				GL_FALSE,	glMat);
-
-		// 转置MFN并上传
-		for (int row = 0; row < 4; ++row)
-			for (int col = 0; col < 4; ++col)
-				glMfn[col * 4 + row] = (float)MFN.values[row][col];
-
-		// 上传矩阵
-		//					uniform位置	上传几个矩阵	是否转置	指向16个float的指针（列主序）
-		glUniformMatrix4fv(	uMFN,		1,				GL_FALSE,	glMfn);
-
-		// 指定解密卡
-		glBindVertexArray(vao);
-		// 绘制三角形
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-
-
-
+		// ② 四个立方体，各自绕自身 Y 轴转
+		for (int i = 0; i < 4; ++i) {
+			Fern::Matrix4x4 m =
+				Fern::Matrix4x4::Scale(0.5, 0.5, 0.5)                                  // ① 先缩到半边长
+				* Fern::Matrix4x4::RotationY(currentSecond * 0.6 + i * 0.7)     // ② 再自转
+				* Fern::Matrix4x4::Translation(P[i][0], 0.5, P[i][1]);          // ③ 最后移到位置
+			DrawObject(vao, 36, m, view, proj, uMVP, uMFN, glMat, glMfn);
+		}
 
 		//OpenGL使用双缓冲。这个函数的作用就是交换缓冲区。
 		glfwSwapBuffers(window);
