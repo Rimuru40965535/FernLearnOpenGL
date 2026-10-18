@@ -61,30 +61,21 @@ int main() {
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { return 2; }
 	std::cout << glGetString(GL_VERSION) << std::endl;
 
+	// 启用深度缓冲
 	glEnable(GL_DEPTH_TEST);
 
+	// 预定义变量
 	int fbw = 0, fbh = 0;
+	bool paused = false;
 	double currentSecond = 0;
-	float glMat[16];
+	float glMat[16] = { 0 };//防御一下未初始化错误
 
-	/*
-	// 三角形顶点数据。
-	// 这里填写的已经是 NDC 空间的数据。
-	// OpenGL 的 NDC 空间定义，xy两个轴都应该是[-1,1]。 
-	const float NDC_vertices[] = {
-		0.0f,  0.5f, 0.0f,
-		-0.5f, -0.5f, 0.0f,
-		0.5f, -0.5f, 0.0f,
-	};
-	std::cout << "NDC_vertices 数组大小：" << sizeof(NDC_vertices) << std::endl;
-	*/
-
-	// 为了三角形的清楚显示，我把背景颜色换一下，并且这一行代码放到循环外，以节省每循环一次的状态设置函数调用（而且循环内实际调用了也是啥也没改）
+	// 清屏颜色设置
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
 	// 接下来的代码片段是 AI 生成的测试数据片段。
 	// 由于我没有预先计算一组可以复用的数据，所以我需要使用 AI 生成一份。
-	// 立方体：36 个顶点（12 三角形），每顶点 = 位置(3) + 颜色(3)
+	// 立方体：36 个顶点（12 三角形），每顶点 = 位置(3) + 颜色(3) + 法向量（3）
 	// 六个面六种颜色，便于肉眼验证深度测试
 	const float cube_vertices[] = {
 		// 顶点       颜色   法线    
@@ -187,13 +178,14 @@ int main() {
 	glEnableVertexAttribArray(2);
 	
 
-	// 这一步在 API 文档里面的编译着色器的步骤。
+	// 编译着色器
+	// 点着色器
 	GLuint vertice_vs = glCreateShader(GL_VERTEX_SHADER);   
-	// 在这里好像就应该预定义一个src数组存储源码了。
+	// 编译预定义的src数组存储源码
 	glShaderSource(vertice_vs, 1, &vertice_src, nullptr);           
 	glCompileShader(vertice_vs);	
 
-	// 这一段应该不属于编译，应该属于检查结果。
+	// 检查结果
 	GLint ok = GL_FALSE;
 	glGetShaderiv(vertice_vs, GL_COMPILE_STATUS, &ok);      // 查是否编译成功
 	if (!ok) {
@@ -255,7 +247,9 @@ int main() {
 
 	// std::cout << "上传矩阵完成" << std::endl;
 	std::cout << "准备进入循环" << std::endl;
-	std::cout << "near 随时间递增，约 12 秒后画面全黑属预期；按 R 重设" << std::endl;
+
+	std::cout << "操作说明：\nESC\t关闭窗口\n空格\t暂停绘制\nE\t继续绘制\nR\t重新开始动画" << std::endl;
+	
 
 	//循环，和我的引擎有相似之处
 	while(!glfwWindowShouldClose(window)){
@@ -279,54 +273,15 @@ int main() {
 				}
 			}
 			glfwSetTime(currentSecond);
+			std::cout << "时间已恢复" << std::endl;
 		}
-		// 重设动画
 		else if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
 			glfwSetTime(0);
-		}
-		// 关键时间
-		else if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
-			std::cout << "时间已暂停，按 E 继续" << std::endl;
-			std::cout << "关键时间点：\n\t按 A 渲染第 13.25 秒\n\t按 S 渲染第 20 秒\n\t按 D 渲染第 25 秒\n\t按 F 渲染第 0 秒" << std::endl;
-			double tempSecond = 0;
-			while (!glfwWindowShouldClose(window)) {
-				glfwPollEvents();
-				if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)break;
-				else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)tempSecond = 13.25;
-				else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)tempSecond = 20;
-				else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)tempSecond = 25;
-				else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)tempSecond = 0;
-
-				glfwGetFramebufferSize(window, &fbw, &fbh);
-				glViewport(0, 0, fbw, fbh);
-				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-				Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(tempSecond / 10) * Fern::Matrix4x4::RotationY(tempSecond / 20);
-				Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4 - tempSecond / 5);
-				Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(
-					fbw, fbh,
-					Fern::Math::PI / 3,
-					0.1, 100.0);
-				Fern::Matrix4x4 MVP = model * view * proj;
-				for (int row = 0; row < 4; ++row)
-					for (int col = 0; col < 4; ++col)
-						glMat[col * 4 + row] = (float)MVP.values[row][col];
-				glUseProgram(prog);                             
-				glUniformMatrix4fv(uMVP, 1, GL_FALSE, glMat);
-
-				glBindVertexArray(vao);
-				glDrawArrays(GL_TRIANGLES, 0, 36);
-
-				glfwSwapBuffers(window);
-			}
-			glfwSetTime(currentSecond);
+			std::cout << "时间已归零" << std::endl;
 		}
 		
 
-		// 每一帧都要重设深度缓冲。
-		// 大小需要每帧核验。
-		// 首先获取一下屏幕大小。看英语提示，两个引用参数应该是用来存储函数本来应该返回的值的。
-		// 所以循环体外部会有 fbw 和 fbh 的定义。
-		// 窗口尺寸变化，深度缓冲的尺寸应当跟随变化。所以需要首先核验窗口大小。
+		// 核验窗口大小。
 		glfwGetFramebufferSize(window, &fbw, &fbh);		
 
 		// 对最小化尺寸做一些防护
@@ -342,24 +297,32 @@ int main() {
 		// 根据已有开发经验，绘制代码集中在清屏与交换缓冲区之间。
 
 		// 动态旋转需要每帧更新矩阵并上传
+		// 
 		//Fern::Matrix4x4 model = Fern::Matrix4x4::Identity();
-		Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(Fern::Math::PI / 3) * Fern::Matrix4x4::RotationY(Fern::Math::PI / 4);
-		//Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(currentSecond / 10) * Fern::Matrix4x4::RotationY(currentSecond / 20);
+		//Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(Fern::Math::PI / 3) * Fern::Matrix4x4::RotationY(Fern::Math::PI / 4);
+		Fern::Matrix4x4 model = Fern::Matrix4x4::RotationX(currentSecond / 10) * Fern::Matrix4x4::RotationY(currentSecond / 20);
+
 		Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4);
 		//Fern::Matrix4x4 view = Fern::Matrix4x4::Translation(0, 0, 4-currentSecond/5);
-		//Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI /3, 0.1, 100.0);
-		Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI / 3, 0.1+currentSecond, 100.0);
+
+		Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI /3, 0.1, 100.0);
+		//Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI / 3, 0.1+currentSecond, 100.0);
+
 		Fern::Matrix4x4 MVP = model * view * proj;
+
 		// 转置：行优先存储 + 列向量作用  →  GLSL 要列主序
-		
 		for (int row = 0; row < 4; ++row)
 			for (int col = 0; col < 4; ++col)
 				glMat[col * 4 + row] = (float)MVP.values[row][col];
 
+		// 指定程序集
 		glUseProgram(prog);                              // 必须在 glUniform 之前
+		// 上传矩阵
 		glUniformMatrix4fv(uMVP, 1, GL_FALSE, glMat);
 
+		// 指定解密卡
 		glBindVertexArray(vao);
+		// 绘制三角形
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
 
