@@ -29,10 +29,28 @@
 #include <GLFW/glfw3.h>
 
 // 点着色器源码。
-const GLchar* vertice_src = "#version 460 core\n\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aColor;\nuniform mat4 uMVP;\nout vec3 vColor;\nvoid main(){\n\tgl_Position = uMVP * vec4(aPos,1.0);\nvColor = aColor;\n}";
+const GLchar* vertice_src = 
+"#version 460 core \n"
+" \n"
+"layout(location=0) in vec3 aPos; \n"
+"layout(location=1) in vec3 aColor; \n"
+"uniform mat4 uMVP; \n"
+"out vec3 vColor; \n"
+"void main(){ \n"
+"	gl_Position = uMVP * vec4(aPos,1.0); \n"
+"	vColor = aColor; \n"
+"} \n";
 
 // 片元着色器源码。
-const GLchar* plate_src = "#version 460 core\n\nin vec3 vColor;\nout vec4 FragColor;\n\nvoid main() {\n\tFragColor = vec4(vColor, 1.0);\n}";
+const GLchar* plate_src = 
+"#version 460 core \n"
+" \n"
+"in vec3 vColor; \n"
+"out vec4 FragColor; \n"
+" \n"
+"void main() { \n"
+"	FragColor = vec4(vColor, 1.0); \n"
+"} \n";
 
 
 
