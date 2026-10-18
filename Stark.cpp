@@ -34,11 +34,15 @@ const GLchar* vertice_src =
 " \n"
 "layout(location=0) in vec3 aPos; \n"
 "layout(location=1) in vec3 aColor; \n"
+"layout(location=2) in vec3 aNormal; \n"
 "uniform mat4 uMVP; \n"
+"uniform mat4 uMFN; \n" // MFN = Matrix For Normal ，专供法向量变换的逆转置矩阵
 "out vec3 vColor; \n"
+"out vec3 vNormal; \n"
 "void main(){ \n"
 "	gl_Position = uMVP * vec4(aPos,1.0); \n"
 "	vColor = aColor; \n"
+"	vNormal = mat3(uMFN) * aNormal;\n"
 "} \n";
 
 // 片元着色器源码。
@@ -46,10 +50,15 @@ const GLchar* plate_src =
 "#version 460 core \n"
 " \n"
 "in vec3 vColor; \n"
+"in vec3 vNormal; \n"
+"uniform vec3 uLightDirection; \n"
 "out vec4 FragColor; \n"
 " \n"
 "void main() { \n"
-"	FragColor = vec4(vColor, 1.0); \n"
+"	vec3 normalizedNormal = normalize(vNormal); \n"
+"	vec3 normalizedLightDirection = normalize(uLightDirection); \n"
+"	float diff = max(dot(normalizedNormal, normalizedLightDirection), 0.0); \n"
+"	FragColor = vec4(vColor*(0.25+0.75*diff), 1.0); \n"
 "} \n";
 
 
@@ -87,6 +96,7 @@ int main() {
 	bool paused = false;
 	double currentSecond = 0;
 	float glMat[16] = { 0 };//防御一下未初始化错误
+	float glMfn[16] = { 0 };
 
 	// 清屏颜色设置
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -250,6 +260,19 @@ int main() {
 
 	std::cout << "链接程序完成" << std::endl;
 
+	// 取 uniform 位置
+	GLint uMFN = glGetUniformLocation(prog, "uMFN");
+	GLint uLightDirection = glGetUniformLocation(prog, "uLightDirection");
+	if (uMFN < 0) {
+		 std::cerr << "[warn] uMFN 未找到" << std::endl;
+		 return 8;
+	}
+	if (uLightDirection < 0) {
+		 std::cerr << "[warn] uLightDirection 未找到" << std::endl;
+		 return 8;
+	}
+
+
 	// 链接完了就可以删程序
 	glDeleteShader(vertice_vs);
 	glDeleteShader(plate_fs);
@@ -309,10 +332,15 @@ int main() {
 		glViewport(0, 0, fbw, fbh);                             
 
 		// 清缓冲
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);      
-		
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);    
+
+		// 指定程序集
+		glUseProgram(prog);                              // 必须在第一个 glUniform 系列函数调用之前
 
 		// 根据已有开发经验，绘制代码集中在清屏与交换缓冲区之间。
+
+		//上传光源
+		glUniform3f(uLightDirection, 0.3f, 1.0f, -0.7f);  // 从斜上方照下来
 
 		// 动态旋转需要每帧更新矩阵并上传
 		// 
@@ -327,16 +355,25 @@ int main() {
 		//Fern::Matrix4x4 proj = Fern::GeneratePerspectiveMatrix(fbw, fbh,Fern::Math::PI / 3, 0.1+currentSecond, 100.0);
 
 		Fern::Matrix4x4 MVP = model * view * proj;
+		Fern::Matrix4x4 MFN = !~model;//这里保证数学上正确并且程序上可移植，虽然可以省两次转置但是我还是选择这样做。
 
-		// 转置：行优先存储 + 列向量作用  →  GLSL 要列主序
+		// 转置MVP并上传
 		for (int row = 0; row < 4; ++row)
 			for (int col = 0; col < 4; ++col)
 				glMat[col * 4 + row] = (float)MVP.values[row][col];
 
-		// 指定程序集
-		glUseProgram(prog);                              // 必须在 glUniform 之前
 		// 上传矩阵
-		glUniformMatrix4fv(uMVP, 1, GL_FALSE, glMat);
+		//					uniform位置	上传几个矩阵	是否转置	指向16个float的指针（列主序）
+		glUniformMatrix4fv(	uMVP,		1,				GL_FALSE,	glMat);
+
+		// 转置MFN并上传
+		for (int row = 0; row < 4; ++row)
+			for (int col = 0; col < 4; ++col)
+				glMfn[col * 4 + row] = (float)MFN.values[row][col];
+
+		// 上传矩阵
+		//					uniform位置	上传几个矩阵	是否转置	指向16个float的指针（列主序）
+		glUniformMatrix4fv(	uMFN,		1,				GL_FALSE,	glMfn);
 
 		// 指定解密卡
 		glBindVertexArray(vao);
@@ -352,6 +389,13 @@ int main() {
 
 		// 获取 GLFW 时间
 		currentSecond = glfwGetTime();
+
+
+		// 查验错误队列中没有错误。有错误会在控制台打印一行信息。
+		GLenum err = glGetError();
+		if (err != GL_NO_ERROR) {
+			std::cout << "GL error 0x" << std::hex << err << std::dec << std::endl;
+		}
 	}
 
 
